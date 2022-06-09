@@ -9,7 +9,9 @@ exports.getAllMovies = async (req, res) => {
     if (Object.keys(requestQuery).length > 0) {
       const lowerLimit = Number(requestQuery.runtimeMins.lte);
       const upperLimit = Number(requestQuery.runtimeMins.gte);
-      const movies = await prisma.movie.findMany({
+      let createdMovie;
+      console.log(lowerLimit, upperLimit);
+      createdMovie = await prisma.movie.findMany({
         select: {
           title: true,
           runtimeMins: true,
@@ -24,10 +26,10 @@ exports.getAllMovies = async (req, res) => {
       });
       res.status(200).json({
         status: "Success",
-        data: movies,
+        data: createdMovie,
       });
     } else {
-      const movies = await prisma.movie.findMany({
+      createdMovie = await prisma.movie.findMany({
         select: {
           title: true,
           runtimeMins: true,
@@ -36,7 +38,7 @@ exports.getAllMovies = async (req, res) => {
       });
       res.status(200).json({
         status: "Success",
-        data: movies,
+        data: createdMovie,
       });
     }
   } catch (err) {
@@ -46,23 +48,50 @@ exports.getAllMovies = async (req, res) => {
 
 exports.createMovie = async (req, res) => {
   const { title, runtimeMins, screenings } = req.body;
-  console.log(screenings);
+  console.log(title, runtimeMins, screenings);
   try {
-    const createdMovie = await prisma.movie.create({
-      data: {
-        title,
-        runtimeMins,
-        screenings: {
-          create: {
-            screenings,
+    const foundMovie = await prisma.movie.findFirst({
+      where: { title },
+    });
+
+    if (foundMovie) {
+      return res.status(404).json({ status: "fail", message: "Movie exists" });
+    }
+
+    if (!foundMovie) {
+      let createdMovie;
+
+      if (screenings) {
+        createdMovie = await prisma.movie.create({
+          data: {
+            title,
+            runtimeMins,
+            screenings: {
+              create: screenings,
+            },
           },
-        },
-      },
-    });
-    res.status(200).json({
-      status: "Success",
-      data: createdMovie,
-    });
+          include: {
+            screenings: true,
+          },
+        });
+        res.status(200).json({
+          status: "Success",
+          data: createdMovie,
+        });
+      } else {
+        createdMovie = await prisma.movie.create({
+          data: {
+            title,
+            runtimeMins,
+          },
+        });
+
+        res.status(200).json({
+          status: "Success",
+          data: createdMovie,
+        });
+      }
+    }
   } catch (err) {
     res.status(404).json({ status: "fail", message: err });
   }
