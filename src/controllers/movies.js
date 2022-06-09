@@ -1,22 +1,44 @@
+const { request } = require("express");
 const { movie } = require("../utils/prisma");
 const prisma = require("../utils/prisma");
 
 exports.getAllMovies = async (req, res) => {
   try {
-    const movies = await prisma.movie.findMany({
-      select: {
-        title: true,
-        runtimeMins: true,
-        screenings: true,
-      },
-      //   include: {
-      //     screenings: true,
-      //   },
-    });
-    res.status(200).json({
-      status: "Success",
-      data: movies,
-    });
+    const requestQuery = req.query;
+
+    if (Object.keys(requestQuery).length > 0) {
+      const lowerLimit = Number(requestQuery.runtimeMins.lte);
+      const upperLimit = Number(requestQuery.runtimeMins.gte);
+      const movies = await prisma.movie.findMany({
+        select: {
+          title: true,
+          runtimeMins: true,
+          screenings: true,
+        },
+        where: {
+          runtimeMins: {
+            gt: upperLimit,
+            lt: lowerLimit,
+          },
+        },
+      });
+      res.status(200).json({
+        status: "Success",
+        data: movies,
+      });
+    } else {
+      const movies = await prisma.movie.findMany({
+        select: {
+          title: true,
+          runtimeMins: true,
+          screenings: true,
+        },
+      });
+      res.status(200).json({
+        status: "Success",
+        data: movies,
+      });
+    }
   } catch (err) {
     res.status(404).json({ status: "fail", message: err });
   }
