@@ -13,6 +13,7 @@ exports.getAllMovies = async (req, res) => {
       console.log(lowerLimit, upperLimit);
       createdMovie = await prisma.movie.findMany({
         select: {
+          id: true,
           title: true,
           runtimeMins: true,
           screenings: true,
@@ -23,6 +24,9 @@ exports.getAllMovies = async (req, res) => {
             lt: lowerLimit,
           },
         },
+        // include: {
+        //   screenings: true,
+        // },
       });
       res.status(200).json({
         status: "Success",
@@ -55,7 +59,7 @@ exports.createMovie = async (req, res) => {
     });
 
     if (foundMovie) {
-      return res.status(404).json({ status: "fail", message: "Movie exists" });
+      throw new Error();
     }
 
     if (!foundMovie) {
@@ -98,16 +102,40 @@ exports.createMovie = async (req, res) => {
 };
 
 exports.getMovieById = async (req, res) => {
-  const movieId = req.params.id * 1;
-  const movies = await prisma.movie.findMany({});
-  const foundMovie = movies.find((movie) => movie.id === movieId);
+  const movieId = req.params.id;
+  const foundMovie = await prisma.movie.findFirst({
+    where: {
+      OR: [
+        {
+          id: Number(movieId) || undefined,
+        },
+        {
+          title: {
+            equals: movieId,
+          },
+        },
+      ],
+    },
+  });
 
   try {
     if (!foundMovie) throw new Error();
 
-    const movie = await prisma.movie.findUnique({
+    const movie = await prisma.movie.findFirst({
       where: {
-        id: Number(movieId),
+        OR: [
+          {
+            id: Number(movieId) || undefined,
+          },
+          {
+            title: {
+              equals: movieId,
+            },
+          },
+        ],
+      },
+      include: {
+        screenings: true,
       },
     });
     res.status(200).json({
@@ -115,6 +143,73 @@ exports.getMovieById = async (req, res) => {
       data: movie,
     });
   } catch (err) {
-    res.status(404).json({ status: "fail", message: "Provide a valid ID" });
+    console.log(err);
+    res
+      .status(404)
+      .json({ status: "fail", message: "Provide a valid ID or Title" });
   }
 };
+
+exports.updateMovie = async (req, res) => {
+  const movieId = Number(req.params.id);
+  const { title, runtimeMins, screenings } = req.body;
+
+  const updatedMovie = await prisma.movie.update({
+    where: {
+      id: movieId,
+    },
+    data: {
+      title,
+      runtimeMins,
+      screenings: {
+        update: screenings.map((screening) => {
+          return {
+            where: {
+              id: screening.id,
+            },
+            data: {
+              screenId: screening.screenId,
+              startsAt: screening.startsAt,
+            },
+          };
+        }),
+      },
+    },
+  });
+
+  res.json({ data: updatedMovie });
+};
+
+// exports.updateMovie = async (req, res) => {
+//   try {
+//     const movieId = Number(req.params.id);
+//     const { title, runtimeMins, screenings } = req.body;
+
+//     const updatedMovie = await prisma.movie.update({
+//       where: {
+//         id: movieId,
+//       },
+//       data: {
+//         title,
+//         runtimeMins,
+//         screenings: {
+//           update: screenings.map((screening) => {
+//             return {
+//               where: {
+//                 id: screening.id,
+//               },
+//               data: {
+//                 screenId: screening.screenId,
+//                 startsAt: screening.startsAt,
+//               },
+//             };
+//           }),
+//         },
+//       },
+//     });
+//     res.status(200).json({ status: "Success", data: updatedMovie });
+//   } catch (err) {
+//     console.error(err);
+//     res.status(404).json({ status: "fail", message: "Provide a valid ID" });
+//   }
+// };
